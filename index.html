@@ -182,7 +182,7 @@ tbody td{padding:12px 16px;color:var(--dgray);vertical-align:middle}
     </div>
     <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="doLogin()">Sign In →</button>
     <p style="text-align:center;margin-top:16px;font-size:12px;color:var(--dgray)">
-      Not a coordinator? <a href="#" onclick="showView('tenant')" style="color:var(--orange);font-weight:600;text-decoration:none">Submit a Work Order</a>
+      Not a coordinator? <a href="#" onclick="openPublicRequestForm(event)" style="color:var(--orange);font-weight:600;text-decoration:none">Submit a Work Order</a>
     </p>
   </div>
 </div>
@@ -423,14 +423,11 @@ tbody td{padding:12px 16px;color:var(--dgray);vertical-align:middle}
 
 <script>
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwzk_mIAf-y9c-kHvCfY091yMCo7t8wmRjGgjjuRTsIexDDIKEbTODSxdQntOfZ8o1E/exec";
-  
 
 // ── COORDINATOR AUTH ──
-// Add coordinator emails and passwords here
+// MVP only: for real production, do not store passwords in front-end HTML.
 const COORDINATORS = [
   { email: "da@srpglobalconsultancy.com.au", password: "SRP@2026" },
-  // Add more coordinators below:
-  // { email: "another@srpglobalconsultancy.com.au", password: "Password123" },
 ];
 
 let currentUser = null;
@@ -444,24 +441,46 @@ let selectedFile = null;
 // ── INIT ──
 window.onload = () => {
   const saved = localStorage.getItem("srpCoordinator");
+
   if (saved) {
-    currentUser = JSON.parse(saved);
-    showApp();
+    try {
+      currentUser = JSON.parse(saved);
+      showApp();
+    } catch (e) {
+      localStorage.removeItem("srpCoordinator");
+      currentUser = null;
+      showLogin();
+    }
+  } else {
+    showLogin();
   }
-  // Set today as min date for form
+
   const today = new Date().toISOString().split("T")[0];
   const dateEl = document.getElementById("f-completionDate");
   if (dateEl) dateEl.min = today;
 };
 
-// ── LOGIN ──
+// ── LOGIN SCREEN ──
+function showLogin() {
+  document.getElementById("mainApp").style.display = "none";
+  document.getElementById("loginScreen").style.display = "flex";
+
+  const header = document.querySelector(".header");
+  if (header) header.style.display = "flex";
+}
+
 function doLogin() {
   const email = document.getElementById("loginEmail").value.trim().toLowerCase();
   const password = document.getElementById("loginPassword").value;
-  const match = COORDINATORS.find(c => c.email.toLowerCase() === email && c.password === password);
+
+  const match = COORDINATORS.find(c =>
+    c.email.toLowerCase() === email && c.password === password
+  );
+
   if (match) {
     currentUser = { email: match.email };
     localStorage.setItem("srpCoordinator", JSON.stringify(currentUser));
+
     document.getElementById("loginError").style.display = "none";
     showApp();
   } else {
@@ -472,33 +491,73 @@ function doLogin() {
 function logout() {
   localStorage.removeItem("srpCoordinator");
   currentUser = null;
-  document.getElementById("mainApp").style.display = "none";
-  document.getElementById("loginScreen").style.display = "flex";
+
+  document.getElementById("loginEmail").value = "";
+  document.getElementById("loginPassword").value = "";
+
+  showLogin();
 }
 
+// ── COORDINATOR APP MODE ──
 function showApp() {
   document.getElementById("loginScreen").style.display = "none";
   document.getElementById("mainApp").style.display = "block";
+
+  const header = document.querySelector(".header");
+  if (header) header.style.display = "flex";
+
   showView("dashboard");
   loadWorkOrders();
   loadContractors();
 }
 
+// ── PUBLIC TENANT REQUEST MODE ──
+function openPublicRequestForm(event) {
+  if (event) event.preventDefault();
+
+  // Important: make sure public request mode is not treated as coordinator login
+  localStorage.removeItem("srpCoordinator");
+  currentUser = null;
+
+  document.getElementById("loginScreen").style.display = "none";
+  document.getElementById("mainApp").style.display = "block";
+
+  // Hide coordinator dashboard/header/navigation for public users
+  const header = document.querySelector(".header");
+  if (header) header.style.display = "none";
+
+  // Show only the tenant form
+  document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
+  document.getElementById("view-tenant").classList.add("active");
+
+  // Reset public form display
+  document.getElementById("formScreen").style.display = "block";
+  document.getElementById("successScreen").style.display = "none";
+
+  resetFormOnly();
+}
+
 // ── NAVIGATION ──
 function showView(view) {
+  // Prevent non-logged-in users from opening coordinator pages
+  if (!currentUser && view !== "tenant") {
+    showLogin();
+    return;
+  }
+
   document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
   document.querySelectorAll(".nav-btn").forEach(b => b.classList.remove("active"));
+
   const el = document.getElementById("view-" + view);
   const nav = document.getElementById("nav-" + view);
+
   if (el) el.classList.add("active");
   if (nav) nav.classList.add("active");
 
-  // If tenant view, hide login requirement
-  if (view === "tenant") {
-    if (!currentUser) {
-      document.getElementById("mainApp").style.display = "block";
-      document.getElementById("loginScreen").style.display = "none";
-    }
+  // Coordinator mode should show header
+  if (currentUser) {
+    const header = document.querySelector(".header");
+    if (header) header.style.display = "flex";
   }
 }
 
@@ -507,23 +566,31 @@ async function loadWorkOrders() {
   try {
     const res = await fetch(SCRIPT_URL + "?action=getWorkOrders");
     const data = await res.json();
+
     if (data.status === "success") {
       allWorkOrders = data.data.filter(r => r.WorkOrderID);
       renderDashboard();
       renderWorkOrders();
+    } else {
+      showToast("Failed to load work orders", "error");
     }
-  } catch(e) { showToast("Failed to load work orders", "error"); }
+  } catch (e) {
+    showToast("Failed to load work orders", "error");
+  }
 }
 
 async function loadContractors() {
   try {
     const res = await fetch(SCRIPT_URL + "?action=getContractors");
     const data = await res.json();
+
     if (data.status === "success") {
       allContractors = data.data.filter(r => r.ContractorName);
       renderContractors();
     }
-  } catch(e) {}
+  } catch (e) {
+    // Silent fail is okay for MVP
+  }
 }
 
 // ── DASHBOARD ──
@@ -542,6 +609,7 @@ function renderDashboard() {
 
   const recent = [...allWorkOrders].reverse().slice(0, 8);
   const tbody = document.getElementById("dashTableBody");
+
   tbody.innerHTML = recent.map(w => `
     <tr>
       <td class="td-id">${w.WorkOrderID}</td>
@@ -549,7 +617,7 @@ function renderDashboard() {
       <td>${w.WorkCategory || "—"}</td>
       <td>${priorityBadge(w.Priority)}</td>
       <td>${statusBadge(w.Status)}</td>
-      <td style="font-size:11px">${w.SubmittedDate ? w.SubmittedDate.substring(0,16) : "—"}</td>
+      <td style="font-size:11px">${w.SubmittedDate ? String(w.SubmittedDate).substring(0,16) : "—"}</td>
       <td><button class="btn btn-sm btn-secondary" onclick="openDetail('${w.WorkOrderID}')">View →</button></td>
     </tr>
   `).join("") || '<tr><td colspan="7" style="text-align:center;padding:24px;color:#aaa">No work orders yet</td></tr>';
@@ -559,6 +627,7 @@ function renderDashboard() {
 function renderWorkOrders(filtered) {
   const list = filtered || allWorkOrders;
   const tbody = document.getElementById("woTableBody");
+
   tbody.innerHTML = [...list].reverse().map(w => `
     <tr>
       <td class="td-id">${w.WorkOrderID}</td>
@@ -585,13 +654,23 @@ function filterWorkOrders() {
   const status = document.getElementById("woStatusFilter").value;
   const cat = document.getElementById("woCategoryFilter").value;
   const pri = document.getElementById("woPriorityFilter").value;
+
   const filtered = allWorkOrders.filter(w => {
-    const matchSearch = !search || [w.WorkOrderID,w.RequestedBy,w.Location,w.ClientSite,w.WorkDescription].some(f => f && f.toLowerCase().includes(search));
+    const matchSearch = !search || [
+      w.WorkOrderID,
+      w.RequestedBy,
+      w.Location,
+      w.ClientSite,
+      w.WorkDescription
+    ].some(f => f && String(f).toLowerCase().includes(search));
+
     const matchStatus = !status || w.Status === status;
     const matchCat = !cat || w.WorkCategory === cat;
     const matchPri = !pri || w.Priority === pri;
+
     return matchSearch && matchStatus && matchCat && matchPri;
   });
+
   renderWorkOrders(filtered);
 }
 
@@ -599,6 +678,7 @@ function filterWorkOrders() {
 function renderContractors(filtered) {
   const list = filtered || allContractors;
   const tbody = document.getElementById("cTableBody");
+
   tbody.innerHTML = list.map(c => `
     <tr>
       <td class="td-id">${c.ContractorID || "—"}</td>
@@ -615,19 +695,33 @@ function renderContractors(filtered) {
 function filterContractors() {
   const search = document.getElementById("cSearch").value.toLowerCase();
   const trade = document.getElementById("cTradeFilter").value;
+
   const filtered = allContractors.filter(c => {
-    const matchSearch = !search || [c.ContractorName,c.ContactPerson,c.Email].some(f => f && f.toLowerCase().includes(search));
+    const matchSearch = !search || [
+      c.ContractorName,
+      c.ContactPerson,
+      c.Email
+    ].some(f => f && String(f).toLowerCase().includes(search));
+
     const matchTrade = !trade || c.Trade === trade;
+
     return matchSearch && matchTrade;
   });
+
   renderContractors(filtered);
 }
 
 // ── WORK ORDER DETAIL MODAL ──
 function openDetail(woId) {
+  if (!currentUser) {
+    showLogin();
+    return;
+  }
+
   const wo = allWorkOrders.find(w => w.WorkOrderID === woId);
   if (!wo) return;
-  document.getElementById("modalTitle").textContent = wo.WorkCategory + " Work Order";
+
+  document.getElementById("modalTitle").textContent = (wo.WorkCategory || "Work Order") + " Work Order";
   document.getElementById("modalId").textContent = wo.WorkOrderID + " · Submitted " + (wo.SubmittedDate || "");
 
   const evidenceHtml = wo.EvidenceLink
@@ -655,18 +749,26 @@ function openDetail(woId) {
 
   const actions = document.getElementById("modalActions");
   actions.innerHTML = "";
+
   if (wo.Status === "New") {
     const btn = document.createElement("button");
     btn.className = "btn btn-primary";
     btn.textContent = "Assign Contractor →";
-    btn.onclick = () => { closeModal("detailModal"); openAssign(wo.WorkOrderID, wo.WorkCategory); };
+    btn.onclick = () => {
+      closeModal("detailModal");
+      openAssign(wo.WorkOrderID, wo.WorkCategory);
+    };
     actions.appendChild(btn);
   }
+
   if (wo.Status === "Assigned" || wo.Status === "In Progress") {
     const btn = document.createElement("button");
     btn.className = "btn btn-green";
     btn.textContent = "Mark as Completed ✓";
-    btn.onclick = () => { closeModal("detailModal"); openComplete(wo.WorkOrderID); };
+    btn.onclick = () => {
+      closeModal("detailModal");
+      openComplete(wo.WorkOrderID);
+    };
     actions.appendChild(btn);
   }
 
@@ -679,12 +781,20 @@ function detailRow(label, value) {
 
 // ── ASSIGN MODAL ──
 function openAssign(woId, category) {
+  if (!currentUser) {
+    showLogin();
+    return;
+  }
+
   currentAssignWoId = woId;
   selectedContractor = null;
+
   document.getElementById("assignWoId").textContent = "Work Order: " + woId;
   document.getElementById("assignNotes").value = "";
   document.getElementById("confirmAssignBtn").disabled = true;
+
   if (category) document.getElementById("assignTradeFilter").value = category;
+
   renderAssignContractors();
   openModal("assignModal");
 }
@@ -693,8 +803,9 @@ function renderAssignContractors(filtered) {
   const trade = document.getElementById("assignTradeFilter").value;
   const list = (filtered || allContractors).filter(c => !trade || c.Trade === trade);
   const container = document.getElementById("assignContractorList");
+
   container.innerHTML = list.map(c => `
-    <div class="contractor-item" onclick="selectAssignContractor(this,'${c.ContractorName}','${c.Email}','${c.ContactPerson}')">
+    <div class="contractor-item" onclick="selectAssignContractor(this,'${escapeQuotes(c.ContractorName)}','${escapeQuotes(c.Email)}','${escapeQuotes(c.ContactPerson)}')">
       <div>
         <div class="contractor-name">${c.ContractorName}</div>
         <div class="contractor-detail">${c.ContactPerson} · ${c.Trade} · ${c.Email}</div>
@@ -704,20 +815,31 @@ function renderAssignContractors(filtered) {
   `).join("") || "<p style='color:#aaa;font-size:13px;padding:12px'>No contractors found for this trade.</p>";
 }
 
-function filterAssignContractors() { renderAssignContractors(); }
+function filterAssignContractors() {
+  renderAssignContractors();
+}
 
 function selectAssignContractor(el, name, email, contact) {
   document.querySelectorAll(".contractor-item").forEach(i => i.classList.remove("selected"));
   el.classList.add("selected");
+
   selectedContractor = { name, email, contact };
   document.getElementById("confirmAssignBtn").disabled = false;
 }
 
 async function confirmAssign() {
+  if (!currentUser) {
+    showLogin();
+    return;
+  }
+
   if (!selectedContractor || !currentAssignWoId) return;
+
   const wo = allWorkOrders.find(w => w.WorkOrderID === currentAssignWoId);
+
   showLoading("Assigning contractor...");
   closeModal("assignModal");
+
   try {
     const res = await fetch(SCRIPT_URL, {
       method: "POST",
@@ -735,30 +857,56 @@ async function confirmAssign() {
         requiredCompletionDate: wo?.RequiredCompletionDate || ""
       })
     });
+
     const data = await res.json();
+
     if (data.status === "success") {
       showToast("✅ Contractor assigned and notified!", "success");
       await loadWorkOrders();
-    } else { showToast("Something went wrong", "error"); }
-  } catch(e) { showToast("Connection error", "error"); }
+    } else {
+      showToast(data.message || "Something went wrong", "error");
+    }
+  } catch (e) {
+    showToast("Connection error", "error");
+  }
+
   hideLoading();
 }
 
 // ── COMPLETE MODAL ──
 function openComplete(woId) {
+  if (!currentUser) {
+    showLogin();
+    return;
+  }
+
   currentCompleteWoId = woId;
+
   document.getElementById("completeWoId").textContent = "Work Order: " + woId;
   document.getElementById("completionDateInput").value = new Date().toISOString().split("T")[0];
   document.getElementById("completionNotes").value = "";
+
   openModal("completeModal");
 }
 
 async function confirmComplete() {
+  if (!currentUser) {
+    showLogin();
+    return;
+  }
+
   if (!currentCompleteWoId) return;
+
   const date = document.getElementById("completionDateInput").value;
-  if (!date) { showToast("Please enter completion date", "warning"); return; }
+
+  if (!date) {
+    showToast("Please enter completion date", "warning");
+    return;
+  }
+
   showLoading("Marking as completed...");
   closeModal("completeModal");
+
   try {
     const res = await fetch(SCRIPT_URL, {
       method: "POST",
@@ -769,12 +917,19 @@ async function confirmComplete() {
         contractorNotes: document.getElementById("completionNotes").value
       })
     });
+
     const data = await res.json();
+
     if (data.status === "success") {
       showToast("✅ Work order marked as completed!", "success");
       await loadWorkOrders();
-    } else { showToast("Something went wrong", "error"); }
-  } catch(e) { showToast("Connection error", "error"); }
+    } else {
+      showToast(data.message || "Something went wrong", "error");
+    }
+  } catch (e) {
+    showToast("Connection error", "error");
+  }
+
   hideLoading();
 }
 
@@ -782,10 +937,22 @@ async function confirmComplete() {
 function selectRadio(el, groupId) {
   document.querySelectorAll(`#${groupId} .radio-opt`).forEach(o => o.classList.remove("selected"));
   el.classList.add("selected");
+
+  const input = el.querySelector("input[type='radio']");
+  if (input) input.checked = true;
 }
 
 function handleFileSelect(input) {
   selectedFile = input.files[0];
+
+  if (selectedFile && selectedFile.size > 10 * 1024 * 1024) {
+    selectedFile = null;
+    input.value = "";
+    document.getElementById("fileName").textContent = "";
+    showToast("File is too large. Maximum size is 10MB.", "warning");
+    return;
+  }
+
   document.getElementById("fileName").textContent = selectedFile ? "📎 " + selectedFile.name : "";
 }
 
@@ -799,13 +966,15 @@ async function submitWorkOrder() {
   const description = document.getElementById("f-description").value.trim();
 
   if (!requestedBy || !clientSite || !location || !completionDate || !category || !priority || !description) {
-    showToast("Please fill in all required fields", "warning"); return;
+    showToast("Please fill in all required fields", "warning");
+    return;
   }
 
   showLoading("Submitting work order...");
   document.getElementById("submitBtn").disabled = true;
 
   let evidenceLink = "";
+
   if (selectedFile) {
     evidenceLink = await uploadFileToDrive(selectedFile);
   }
@@ -815,21 +984,33 @@ async function submitWorkOrder() {
       method: "POST",
       body: JSON.stringify({
         action: "submitWorkOrder",
-        requestedBy, clientSite, location,
+        requestedBy,
+        clientSite,
+        location,
         requiredCompletionDate: completionDate,
-        workCategory: category, priority,
+        workCategory: category,
+        priority,
         workDescription: description,
         evidenceLink
       })
     });
+
     const data = await res.json();
+
     if (data.status === "success") {
       document.getElementById("successId").textContent = data.workOrderId;
       document.getElementById("formScreen").style.display = "none";
       document.getElementById("successScreen").style.display = "block";
-      await loadWorkOrders();
-    } else { showToast("Submission failed. Try again.", "error"); }
-  } catch(e) { showToast("Connection error. Try again.", "error"); }
+
+      if (currentUser) {
+        await loadWorkOrders();
+      }
+    } else {
+      showToast(data.message || "Submission failed. Try again.", "error");
+    }
+  } catch (e) {
+    showToast("Connection error. Try again.", "error");
+  }
 
   document.getElementById("submitBtn").disabled = false;
   hideLoading();
@@ -838,9 +1019,11 @@ async function submitWorkOrder() {
 async function uploadFileToDrive(file) {
   return new Promise(resolve => {
     const reader = new FileReader();
+
     reader.onload = async e => {
       try {
         const base64 = e.target.result.split(",")[1];
+
         const res = await fetch(SCRIPT_URL, {
           method: "POST",
           body: JSON.stringify({
@@ -850,56 +1033,120 @@ async function uploadFileToDrive(file) {
             base64Data: base64
           })
         });
+
         const data = await res.json();
-        resolve(data.fileUrl || "");
-      } catch { resolve(""); }
+
+        if (data.status === "success") {
+          resolve(data.fileUrl || "");
+        } else {
+          showToast("File upload failed. Form will submit without attachment.", "warning");
+          resolve("");
+        }
+      } catch (e) {
+        showToast("File upload failed. Form will submit without attachment.", "warning");
+        resolve("");
+      }
     };
+
     reader.readAsDataURL(file);
   });
 }
 
 function resetForm() {
+  resetFormOnly();
+
+  document.getElementById("formScreen").style.display = "block";
+  document.getElementById("successScreen").style.display = "none";
+}
+
+function resetFormOnly() {
   document.getElementById("f-requestedBy").value = "";
   document.getElementById("f-clientSite").value = "";
   document.getElementById("f-location").value = "";
   document.getElementById("f-completionDate").value = "";
   document.getElementById("f-description").value = "";
+
+  const fileInput = document.getElementById("fileInput");
+  if (fileInput) fileInput.value = "";
+
   document.getElementById("fileName").textContent = "";
+
   document.querySelectorAll(".radio-opt").forEach(o => o.classList.remove("selected"));
   document.querySelectorAll("input[type=radio]").forEach(r => r.checked = false);
+
   selectedFile = null;
-  document.getElementById("formScreen").style.display = "block";
-  document.getElementById("successScreen").style.display = "none";
 }
 
 // ── BADGES ──
 function statusBadge(s) {
-  const map = { New:"badge-new", Assigned:"badge-assigned", "In Progress":"badge-inprogress", Completed:"badge-completed", Closed:"badge-closed" };
-  return `<span class="badge ${map[s]||'badge-new'}">${s||"New"}</span>`;
+  const map = {
+    New: "badge-new",
+    Assigned: "badge-assigned",
+    "In Progress": "badge-inprogress",
+    Completed: "badge-completed",
+    Closed: "badge-closed"
+  };
+
+  return `<span class="badge ${map[s] || 'badge-new'}">${s || "New"}</span>`;
 }
+
 function priorityBadge(p) {
-  const map = { Low:"badge-low", Medium:"badge-medium", High:"badge-high", Urgent:"badge-urgent" };
-  return `<span class="badge ${map[p]||'badge-medium'}">${p||"—"}</span>`;
+  const map = {
+    Low: "badge-low",
+    Medium: "badge-medium",
+    High: "badge-high",
+    Urgent: "badge-urgent"
+  };
+
+  return `<span class="badge ${map[p] || 'badge-medium'}">${p || "—"}</span>`;
 }
 
 // ── MODAL HELPERS ──
-function openModal(id) { document.getElementById(id).classList.add("show"); }
-function closeModal(id) { document.getElementById(id).classList.remove("show"); }
-document.querySelectorAll(".modal-overlay").forEach(m => m.addEventListener("click", e => { if(e.target===m) m.classList.remove("show"); }));
+function openModal(id) {
+  document.getElementById(id).classList.add("show");
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove("show");
+}
+
+document.querySelectorAll(".modal-overlay").forEach(m => {
+  m.addEventListener("click", e => {
+    if (e.target === m) m.classList.remove("show");
+  });
+});
 
 // ── TOAST ──
-function showToast(msg, type="success") {
+function showToast(msg, type = "success") {
   const t = document.getElementById("toast");
-  t.textContent = msg; t.className = "toast show " + type;
-  setTimeout(() => t.className = "toast", 3500);
+  t.textContent = msg;
+  t.className = "toast show " + type;
+
+  setTimeout(() => {
+    t.className = "toast";
+  }, 3500);
 }
 
 // ── LOADING ──
-function showLoading(msg) { document.getElementById("loadingText").textContent = msg; document.getElementById("loading").classList.add("show"); }
-function hideLoading() { document.getElementById("loading").classList.remove("show"); }
+function showLoading(msg) {
+  document.getElementById("loadingText").textContent = msg;
+  document.getElementById("loading").classList.add("show");
+}
+
+function hideLoading() {
+  document.getElementById("loading").classList.remove("show");
+}
+
+// ── SAFE STRING HELPER ──
+function escapeQuotes(value) {
+  return String(value || "")
+    .replace(/\\/g, "\\\\")
+    .replace(/'/g, "\\'")
+    .replace(/"/g, "&quot;");
+}
 
 // ── AUTO REFRESH EVERY 2 MINS ──
-setInterval(() => { if(currentUser) loadWorkOrders(); }, 120000);
+setInterval(() => {
+  if (currentUser) loadWorkOrders();
+}, 120000);
 </script>
-</body>
-</html>
