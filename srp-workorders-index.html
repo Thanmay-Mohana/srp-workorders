@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0"/>
+<title>SRP Work Order Management</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --orange:#E8521A;--dark:#1A1A2E;--white:#FFFFFF;
+  --lgray:#F5F5F5;--mgray:#E0E0E0;--dgray:#555555;
+  --green:#27AE60;--amber:#F0A500;--red:#E74C3C;--blue:#2980B9;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#F0F2F5;min-height:100vh}
+
+/* ── HEADER ── */
+.header{background:var(--dark);padding:14px 24px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,0.3)}
+.header-logo{font-size:22px;font-weight:800;color:#fff;letter-spacing:1px}
+.header-divider{width:2px;height:36px;background:var(--orange);flex-shrink:0}
+.header-text{flex:1}
+.header-company{font-size:12px;font-weight:700;color:#fff;letter-spacing:.5px}
+.header-tagline{font-size:9px;color:var(--orange);letter-spacing:.4px;margin-top:1px}
+.header-nav{display:flex;gap:8px}
+.nav-btn{background:none;border:1.5px solid rgba(255,255,255,0.2);color:rgba(255,255,255,0.7);padding:7px 14px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;transition:all .2s}
+.nav-btn:hover,.nav-btn.active{border-color:var(--orange);color:var(--orange);background:rgba(232,82,26,0.08)}
+
+/* ── VIEWS ── */
+.view{display:none;padding:28px 24px;max-width:1100px;margin:0 auto}
+.view.active{display:block}
+
+/* ── PAGE TITLE ── */
+.page-title{font-size:22px;font-weight:700;color:var(--dark);margin-bottom:6px}
+.page-sub{font-size:13px;color:var(--dgray);margin-bottom:24px}
+.orange-line{width:40px;height:3px;background:var(--orange);border-radius:2px;margin-bottom:20px}
+
+/* ── CARDS ── */
+.card{background:#fff;border-radius:12px;padding:28px;box-shadow:0 1px 6px rgba(0,0,0,0.07);margin-bottom:20px}
+.card-title{font-size:15px;font-weight:700;color:var(--dark);margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.card-title span{width:4px;height:18px;background:var(--orange);border-radius:2px;display:inline-block}
+
+/* ── STATS ROW ── */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:24px}
+.stat{background:#fff;border-radius:10px;padding:18px;box-shadow:0 1px 4px rgba(0,0,0,0.06);border-left:4px solid var(--orange)}
+.stat-num{font-size:28px;font-weight:800;color:var(--dark)}
+.stat-label{font-size:11px;color:var(--dgray);margin-top:4px;font-weight:500}
+
+/* ── FORM ── */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.form-group{display:flex;flex-direction:column;gap:6px}
+.form-group.full{grid-column:1/-1}
+label{font-size:12px;font-weight:600;color:var(--dark)}
+label .req{color:var(--orange)}
+input,select,textarea{border:1.5px solid var(--mgray);border-radius:8px;padding:11px 14px;font-size:13px;color:var(--dark);background:#fff;transition:border .2s;outline:none;font-family:inherit}
+input:focus,select:focus,textarea:focus{border-color:var(--orange)}
+textarea{resize:vertical;min-height:90px}
+.radio-group{display:flex;flex-wrap:wrap;gap:10px;margin-top:4px}
+.radio-opt{display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;color:var(--dgray);background:var(--lgray);border:1.5px solid var(--mgray);border-radius:8px;padding:8px 14px;transition:all .2s}
+.radio-opt input{display:none}
+.radio-opt.selected{border-color:var(--orange);color:var(--orange);background:rgba(232,82,26,0.06);font-weight:600}
+
+/* ── BUTTONS ── */
+.btn{border:none;border-radius:8px;padding:12px 24px;font-size:14px;font-weight:700;cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;gap:8px}
+.btn:active{transform:scale(0.98)}
+.btn-primary{background:var(--orange);color:#fff}
+.btn-primary:hover{background:#d4471a}
+.btn-secondary{background:#fff;color:var(--orange);border:2px solid var(--orange)}
+.btn-sm{padding:8px 16px;font-size:12px}
+.btn-green{background:var(--green);color:#fff}
+.btn-red{background:var(--red);color:#fff}
+.btn-blue{background:var(--blue);color:#fff}
+.btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
+
+/* ── TABLE ── */
+.table-wrap{overflow-x:auto;border-radius:10px;border:1px solid var(--mgray)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead{background:var(--dark)}
+thead th{padding:12px 16px;color:#fff;font-weight:600;text-align:left;white-space:nowrap}
+tbody tr{border-bottom:1px solid var(--mgray);transition:background .15s}
+tbody tr:hover{background:#fafafa}
+tbody td{padding:12px 16px;color:var(--dgray);vertical-align:middle}
+.td-id{font-weight:700;color:var(--orange);font-size:12px}
+
+/* ── BADGES ── */
+.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap}
+.badge-new{background:#EBF5FB;color:#2980B9}
+.badge-assigned{background:#FEF9E7;color:#F39C12}
+.badge-inprogress{background:#EAF6FF;color:#1A6B9A}
+.badge-completed{background:#EAFAF1;color:#1E8449}
+.badge-closed{background:#F2F3F4;color:#717D7E}
+.badge-high{background:#FDEDEC;color:#E74C3C}
+.badge-urgent{background:#E74C3C;color:#fff}
+.badge-medium{background:#FEF9E7;color:#F39C12}
+.badge-low{background:#EAFAF1;color:#27AE60}
+
+/* ── MODAL ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200;display:none;align-items:center;justify-content:center;padding:20px}
+.modal-overlay.show{display:flex}
+.modal{background:#fff;border-radius:14px;padding:28px;width:100%;max-width:620px;max-height:90vh;overflow-y:auto;position:relative}
+.modal-title{font-size:17px;font-weight:700;color:var(--dark);margin-bottom:4px}
+.modal-sub{font-size:12px;color:var(--dgray);margin-bottom:20px}
+.modal-close{position:absolute;top:16px;right:16px;background:none;border:none;font-size:22px;cursor:pointer;color:var(--dgray)}
+.detail-row{display:flex;gap:12px;margin-bottom:10px;align-items:flex-start}
+.detail-label{font-size:11px;font-weight:700;color:var(--dark);min-width:130px;padding-top:2px}
+.detail-value{font-size:13px;color:var(--dgray);flex:1}
+
+/* ── LOGIN ── */
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#F0F2F5;padding:20px}
+.login-card{background:#fff;border-radius:16px;padding:40px;width:100%;max-width:420px;box-shadow:0 4px 24px rgba(0,0,0,0.1)}
+.login-logo{font-size:36px;font-weight:900;color:var(--dark);letter-spacing:2px;margin-bottom:4px}
+.login-logo span{color:var(--orange)}
+.login-title{font-size:18px;font-weight:700;color:var(--dark);margin-bottom:6px}
+.login-sub{font-size:13px;color:var(--dgray);margin-bottom:28px;line-height:1.6}
+.login-divider{width:40px;height:3px;background:var(--orange);border-radius:2px;margin-bottom:24px}
+.login-error{background:#FDEDEC;border:1px solid #E74C3C;border-radius:8px;padding:10px 14px;font-size:13px;color:#E74C3C;margin-bottom:14px;display:none}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(100px);background:var(--dark);color:#fff;padding:12px 24px;border-radius:50px;font-size:13px;font-weight:600;transition:transform .3s;z-index:999;white-space:nowrap;max-width:90vw;text-align:center}
+.toast.show{transform:translateX(-50%) translateY(0)}
+.toast.success{background:var(--green)}
+.toast.error{background:var(--red)}
+.toast.warning{background:var(--amber)}
+
+/* ── LOADING ── */
+.loading{position:fixed;inset:0;background:rgba(255,255,255,0.85);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:998;gap:16px}
+.loading.show{display:flex}
+.spinner{width:40px;height:40px;border:4px solid var(--mgray);border-top-color:var(--orange);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading p{font-size:13px;color:var(--dgray);font-weight:600}
+
+/* ── FILE UPLOAD ── */
+.file-upload{border:2px dashed var(--mgray);border-radius:10px;padding:24px;text-align:center;cursor:pointer;transition:border .2s;background:var(--lgray)}
+.file-upload:hover{border-color:var(--orange)}
+.file-upload p{font-size:13px;color:var(--dgray);margin-top:8px}
+.file-upload .icon{font-size:28px}
+.file-name{font-size:12px;color:var(--green);margin-top:8px;font-weight:600}
+
+/* ── SUCCESS SCREEN ── */
+.success-screen{text-align:center;padding:40px 20px}
+.success-icon{font-size:64px;margin-bottom:16px}
+.success-id{background:var(--lgray);border-radius:8px;padding:12px 20px;font-size:15px;font-weight:700;color:var(--orange);margin:16px 0;display:inline-block}
+
+/* ── FILTERS ── */
+.filters{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px;align-items:center}
+.filter-select{border:1.5px solid var(--mgray);border-radius:8px;padding:8px 14px;font-size:13px;color:var(--dark);background:#fff;cursor:pointer;outline:none}
+.filter-select:focus{border-color:var(--orange)}
+.search-input{border:1.5px solid var(--mgray);border-radius:8px;padding:8px 14px;font-size:13px;flex:1;min-width:200px;outline:none}
+.search-input:focus{border-color:var(--orange)}
+
+/* ── CONTRACTOR SELECTOR ── */
+.contractor-list{display:flex;flex-direction:column;gap:8px;max-height:300px;overflow-y:auto;margin-top:8px}
+.contractor-item{border:1.5px solid var(--mgray);border-radius:8px;padding:12px 14px;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:space-between}
+.contractor-item:hover{border-color:var(--orange);background:rgba(232,82,26,0.03)}
+.contractor-item.selected{border-color:var(--orange);background:rgba(232,82,26,0.06)}
+.contractor-name{font-size:13px;font-weight:600;color:var(--dark)}
+.contractor-detail{font-size:11px;color:var(--dgray);margin-top:2px}
+
+@media(max-width:640px){
+  .form-grid{grid-template-columns:1fr}
+  .header-nav{display:none}
+  .view{padding:16px}
+  .stats{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- ══ LOGIN SCREEN ══ -->
+<div id="loginScreen" class="login-wrap">
+  <div class="login-card">
+    <div class="login-logo">SR<span>P</span></div>
+    <div class="login-divider"></div>
+    <div class="login-title">Coordinator Login</div>
+    <div class="login-sub">Work Order Management System<br>SRP Global Consultancy</div>
+    <div class="login-error" id="loginError">Invalid email or password. Please try again.</div>
+    <div class="form-group" style="margin-bottom:14px">
+      <label>Email Address</label>
+      <input type="email" id="loginEmail" placeholder="your@srpglobalconsultancy.com.au"/>
+    </div>
+    <div class="form-group" style="margin-bottom:20px">
+      <label>Password</label>
+      <input type="password" id="loginPassword" placeholder="Enter password" onkeydown="if(event.key==='Enter')doLogin()"/>
+    </div>
+    <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="doLogin()">Sign In →</button>
+    <p style="text-align:center;margin-top:16px;font-size:12px;color:var(--dgray)">
+      Not a coordinator? <a href="#" onclick="showView('tenant')" style="color:var(--orange);font-weight:600;text-decoration:none">Submit a Work Order</a>
+    </p>
+  </div>
+</div>
+
+<!-- ══ MAIN APP ══ -->
+<div id="mainApp" style="display:none">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-logo">SRP</div>
+    <div class="header-divider"></div>
+    <div class="header-text">
+      <div class="header-company">SRP GLOBAL CONSULTANCY</div>
+      <div class="header-tagline">WORK ORDER MANAGEMENT SYSTEM</div>
+    </div>
+    <div class="header-nav">
+      <button class="nav-btn active" onclick="showView('dashboard')" id="nav-dashboard">Dashboard</button>
+      <button class="nav-btn" onclick="showView('workorders')" id="nav-workorders">Work Orders</button>
+      <button class="nav-btn" onclick="showView('contractors')" id="nav-contractors">Contractors</button>
+      <button class="nav-btn" onclick="showView('tenant')" id="nav-tenant">New Request</button>
+      <button class="nav-btn" onclick="logout()" style="border-color:rgba(255,255,255,0.1);color:rgba(255,255,255,0.4)">Sign Out</button>
+    </div>
+  </div>
+
+  <!-- ══ DASHBOARD VIEW ══ -->
+  <div class="view active" id="view-dashboard">
+    <div class="page-title">Dashboard</div>
+    <div class="page-sub">Overview of all work orders — SRP Global Consultancy</div>
+    <div class="orange-line"></div>
+    <div class="stats" id="statsRow">
+      <div class="stat"><div class="stat-num" id="stat-total">—</div><div class="stat-label">Total Work Orders</div></div>
+      <div class="stat" style="border-color:#2980B9"><div class="stat-num" id="stat-new" style="color:#2980B9">—</div><div class="stat-label">New / Pending</div></div>
+      <div class="stat" style="border-color:#F39C12"><div class="stat-num" id="stat-assigned" style="color:#F39C12">—</div><div class="stat-label">Assigned</div></div>
+      <div class="stat" style="border-color:#27AE60"><div class="stat-num" id="stat-completed" style="color:#27AE60">—</div><div class="stat-label">Completed</div></div>
+      <div class="stat" style="border-color:#E74C3C"><div class="stat-num" id="stat-urgent" style="color:#E74C3C">—</div><div class="stat-label">Urgent Priority</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title"><span></span>Recent Work Orders</div>
+      <div class="table-wrap">
+        <table id="dashTable">
+          <thead><tr><th>Work Order ID</th><th>Requested By</th><th>Category</th><th>Priority</th><th>Status</th><th>Submitted</th><th>Action</th></tr></thead>
+          <tbody id="dashTableBody"><tr><td colspan="7" style="text-align:center;padding:24px;color:#aaa">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ WORK ORDERS VIEW ══ -->
+  <div class="view" id="view-workorders">
+    <div class="page-title">All Work Orders</div>
+    <div class="page-sub">Manage, assign and track all work orders</div>
+    <div class="orange-line"></div>
+    <div class="filters">
+      <input class="search-input" placeholder="🔍  Search by ID, name, location..." oninput="filterWorkOrders()" id="woSearch"/>
+      <select class="filter-select" onchange="filterWorkOrders()" id="woStatusFilter">
+        <option value="">All Statuses</option>
+        <option>New</option><option>Assigned</option><option>In Progress</option><option>Completed</option><option>Closed</option>
+      </select>
+      <select class="filter-select" onchange="filterWorkOrders()" id="woCategoryFilter">
+        <option value="">All Categories</option>
+        <option>Electrical</option><option>Plumbing</option><option>HVAC</option><option>General Maintenance</option>
+      </select>
+      <select class="filter-select" onchange="filterWorkOrders()" id="woPriorityFilter">
+        <option value="">All Priorities</option>
+        <option>Low</option><option>Medium</option><option>High</option><option>Urgent</option>
+      </select>
+      <button class="btn btn-primary btn-sm" onclick="loadWorkOrders()">↻ Refresh</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Work Order ID</th><th>Requested By</th><th>Site</th><th>Category</th><th>Priority</th><th>Status</th><th>Due Date</th><th>Contractor</th><th>Actions</th></tr></thead>
+        <tbody id="woTableBody"><tr><td colspan="9" style="text-align:center;padding:24px;color:#aaa">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ══ CONTRACTORS VIEW ══ -->
+  <div class="view" id="view-contractors">
+    <div class="page-title">Contractors</div>
+    <div class="page-sub">View contractors from Google Sheets — edit directly in the sheet to update</div>
+    <div class="orange-line"></div>
+    <div class="card" style="background:#FFF5F1;border:1px solid #F5C5AF">
+      <p style="font-size:13px;color:var(--dgray)">💡 To add or edit contractors, update the <strong>Contractors</strong> tab in your Google Sheet. Changes reflect here automatically.</p>
+    </div>
+    <div class="filters">
+      <input class="search-input" placeholder="🔍  Search contractors..." oninput="filterContractors()" id="cSearch"/>
+      <select class="filter-select" onchange="filterContractors()" id="cTradeFilter">
+        <option value="">All Trades</option>
+        <option>Electrical</option><option>Plumbing</option><option>HVAC</option><option>General Maintenance</option>
+      </select>
+      <button class="btn btn-primary btn-sm" onclick="loadContractors()">↻ Refresh</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>ID</th><th>Company</th><th>Contact Person</th><th>Trade</th><th>Email</th><th>Phone</th><th>Availability</th></tr></thead>
+        <tbody id="cTableBody"><tr><td colspan="7" style="text-align:center;padding:24px;color:#aaa">Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ══ TENANT FORM VIEW ══ -->
+  <div class="view" id="view-tenant">
+    <div id="formScreen">
+      <div class="page-title">Work Order Request Form</div>
+      <div class="page-sub">Submit a maintenance or work request — SRP Global Consultancy</div>
+      <div class="orange-line"></div>
+      <div class="card">
+        <div class="card-title"><span></span>Request Details</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Requested By <span class="req">*</span></label>
+            <input type="text" id="f-requestedBy" placeholder="Your full name"/>
+          </div>
+          <div class="form-group">
+            <label>Client / Site <span class="req">*</span></label>
+            <input type="text" id="f-clientSite" placeholder="e.g. ABC Corp"/>
+          </div>
+          <div class="form-group">
+            <label>Location <span class="req">*</span></label>
+            <input type="text" id="f-location" placeholder="e.g. Level 3, CBD Office"/>
+          </div>
+          <div class="form-group">
+            <label>Required Completion Date <span class="req">*</span></label>
+            <input type="date" id="f-completionDate"/>
+          </div>
+          <div class="form-group full">
+            <label>Work Category <span class="req">*</span></label>
+            <div class="radio-group" id="categoryGroup">
+              <label class="radio-opt" onclick="selectRadio(this,'categoryGroup')"><input type="radio" name="category" value="Electrical"/>⚡ Electrical</label>
+              <label class="radio-opt" onclick="selectRadio(this,'categoryGroup')"><input type="radio" name="category" value="Plumbing"/>🔧 Plumbing</label>
+              <label class="radio-opt" onclick="selectRadio(this,'categoryGroup')"><input type="radio" name="category" value="HVAC"/>❄️ HVAC</label>
+              <label class="radio-opt" onclick="selectRadio(this,'categoryGroup')"><input type="radio" name="category" value="General Maintenance"/>🔨 General Maintenance</label>
+            </div>
+          </div>
+          <div class="form-group full">
+            <label>Priority <span class="req">*</span></label>
+            <div class="radio-group" id="priorityGroup">
+              <label class="radio-opt" onclick="selectRadio(this,'priorityGroup')"><input type="radio" name="priority" value="Low"/>🟢 Low</label>
+              <label class="radio-opt" onclick="selectRadio(this,'priorityGroup')"><input type="radio" name="priority" value="Medium"/>🟡 Medium</label>
+              <label class="radio-opt" onclick="selectRadio(this,'priorityGroup')"><input type="radio" name="priority" value="High"/>🟠 High</label>
+              <label class="radio-opt" onclick="selectRadio(this,'priorityGroup')"><input type="radio" name="priority" value="Urgent"/>🔴 Urgent</label>
+            </div>
+          </div>
+          <div class="form-group full">
+            <label>Work Description <span class="req">*</span></label>
+            <textarea id="f-description" placeholder="Describe the issue or work required in detail..."></textarea>
+          </div>
+          <div class="form-group full">
+            <label>Attach Photo / Evidence (optional)</label>
+            <div class="file-upload" onclick="document.getElementById('fileInput').click()">
+              <div class="icon">📎</div>
+              <p>Click to upload photo or document</p>
+              <p style="font-size:11px;color:#aaa;margin-top:4px">Max 10MB — JPG, PNG, PDF, Word</p>
+              <div class="file-name" id="fileName"></div>
+            </div>
+            <input type="file" id="fileInput" style="display:none" accept=".jpg,.jpeg,.png,.pdf,.doc,.docx" onchange="handleFileSelect(this)"/>
+          </div>
+        </div>
+        <div style="margin-top:24px;display:flex;gap:12px;justify-content:flex-end">
+          <button class="btn btn-secondary" onclick="resetForm()">Clear Form</button>
+          <button class="btn btn-primary" onclick="submitWorkOrder()" id="submitBtn">Submit Work Order →</button>
+        </div>
+      </div>
+    </div>
+    <div id="successScreen" class="success-screen" style="display:none">
+      <div class="success-icon">✅</div>
+      <div class="page-title">Work Order Submitted!</div>
+      <p style="color:var(--dgray);margin-top:8px">Your work order has been received and the coordinator has been notified.</p>
+      <div class="success-id" id="successId">WO-000000000000</div>
+      <p style="font-size:13px;color:var(--dgray);margin-bottom:24px">Please save your Work Order ID for reference.</p>
+      <button class="btn btn-primary" onclick="resetForm()">Submit Another Request</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══ WORK ORDER DETAIL MODAL ══ -->
+<div class="modal-overlay" id="detailModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('detailModal')">✕</button>
+    <div class="modal-title" id="modalTitle">Work Order Details</div>
+    <div class="modal-sub" id="modalId"></div>
+    <div id="modalContent"></div>
+    <div id="modalActions" style="margin-top:20px;display:flex;flex-wrap:wrap;gap:10px"></div>
+  </div>
+</div>
+
+<!-- ══ ASSIGN MODAL ══ -->
+<div class="modal-overlay" id="assignModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('assignModal')">✕</button>
+    <div class="modal-title">Assign Contractor</div>
+    <div class="modal-sub" id="assignWoId">Select a contractor for this work order</div>
+    <div class="form-group" style="margin-bottom:14px">
+      <label>Filter by Trade</label>
+      <select class="filter-select" style="width:100%" onchange="filterAssignContractors()" id="assignTradeFilter">
+        <option value="">All Trades</option>
+        <option>Electrical</option><option>Plumbing</option><option>HVAC</option><option>General Maintenance</option>
+      </select>
+    </div>
+    <label style="font-size:12px;font-weight:600;color:var(--dark)">Select Contractor</label>
+    <div class="contractor-list" id="assignContractorList"></div>
+    <div class="form-group" style="margin-top:14px">
+      <label>Coordinator Notes (optional)</label>
+      <textarea id="assignNotes" placeholder="Any notes for the contractor..." style="min-height:70px"></textarea>
+    </div>
+    <div style="margin-top:20px;display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn btn-secondary" onclick="closeModal('assignModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmAssign()" id="confirmAssignBtn" disabled>Assign Contractor →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ COMPLETE MODAL ══ -->
+<div class="modal-overlay" id="completeModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('completeModal')">✕</button>
+    <div class="modal-title">Mark as Completed</div>
+    <div class="modal-sub" id="completeWoId"></div>
+    <div class="form-group" style="margin-bottom:14px">
+      <label>Completion Date <span class="req">*</span></label>
+      <input type="date" id="completionDateInput"/>
+    </div>
+    <div class="form-group" style="margin-bottom:14px">
+      <label>Contractor Notes</label>
+      <textarea id="completionNotes" placeholder="Work completed notes..." style="min-height:80px"></textarea>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">
+      <button class="btn btn-secondary" onclick="closeModal('completeModal')">Cancel</button>
+      <button class="btn btn-green" onclick="confirmComplete()">Mark Completed ✓</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast + Loading -->
+<div class="toast" id="toast"></div>
+<div class="loading" id="loading"><div class="spinner"></div><p id="loadingText">Please wait...</p></div>
+
+<script>
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzcBZJGc3ptpKkFQEfRsPEok9d9R7YVcHdHSMUPqPEHkkWVsfhrrtKPY-NCFFJUOj9a/exec";
+
+// ── COORDINATOR AUTH ──
+// Add coordinator emails and passwords here
+const COORDINATORS = [
+  { email: "da@srpglobalconsultancy.com.au", password: "SRP@2026" },
+  // Add more coordinators below:
+  // { email: "another@srpglobalconsultancy.com.au", password: "Password123" },
+];
+
+let currentUser = null;
+let allWorkOrders = [];
+let allContractors = [];
+let selectedContractor = null;
+let currentAssignWoId = null;
+let currentCompleteWoId = null;
+let selectedFile = null;
+
+// ── INIT ──
+window.onload = () => {
+  const saved = localStorage.getItem("srpCoordinator");
+  if (saved) {
+    currentUser = JSON.parse(saved);
+    showApp();
+  }
+  // Set today as min date for form
+  const today = new Date().toISOString().split("T")[0];
+  const dateEl = document.getElementById("f-completionDate");
+  if (dateEl) dateEl.min = today;
+};
+
+// ── LOGIN ──
+function doLogin() {
+  const email = document.getElementById("loginEmail").value.trim().toLowerCase();
+  const password = document.getElementById("loginPassword").value;
+  const match = COORDINATORS.find(c => c.email.toLowerCase() === email && c.password === password);
+  if (match) {
+    currentUser = { email: match.email };
+    localStorage.setItem("srpCoordinator", JSON.stringify(currentUser));
+    document.getElementById("loginError").style.display = "none";
+    showApp();
+  } else {
+    document.getElementById("loginError").style.display = "block";
+  }
+}
+
+function logout() {
+  localStorage.removeItem("srpCoordinator");
+  currentUser = null;
+  document.getElementById("mainApp").style.display = "none";
+  document.getElementById("loginScreen").style.display = "flex";
+}
+
+function showApp() {
+  document.getElementById("loginScreen").style.display = "none";
+  document.getElementById("mainApp").style.display = "block";
+  showView("dashboard");
+  loadWorkOrders();
+  loadContractors();
+}
+
+// ── NAVIGATION ──
+function showView(view) {
+  document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
+  document.querySelectorAll(".nav-btn").forEach(b => b.classList.remove("active"));
+  const el = document.getElementById("view-" + view);
+  const nav = document.getElementById("nav-" + view);
+  if (el) el.classList.add("active");
+  if (nav) nav.classList.add("active");
+
+  // If tenant view, hide login requirement
+  if (view === "tenant") {
+    if (!currentUser) {
+      document.getElementById("mainApp").style.display = "block";
+      document.getElementById("loginScreen").style.display = "none";
+    }
+  }
+}
+
+// ── LOAD DATA ──
+async function loadWorkOrders() {
+  try {
+    const res = await fetch(SCRIPT_URL + "?action=getWorkOrders");
+    const data = await res.json();
+    if (data.status === "success") {
+      allWorkOrders = data.data.filter(r => r.WorkOrderID);
+      renderDashboard();
+      renderWorkOrders();
+    }
+  } catch(e) { showToast("Failed to load work orders", "error"); }
+}
+
+async function loadContractors() {
+  try {
+    const res = await fetch(SCRIPT_URL + "?action=getContractors");
+    const data = await res.json();
+    if (data.status === "success") {
+      allContractors = data.data.filter(r => r.ContractorName);
+      renderContractors();
+    }
+  } catch(e) {}
+}
+
+// ── DASHBOARD ──
+function renderDashboard() {
+  const total = allWorkOrders.length;
+  const newCount = allWorkOrders.filter(w => w.Status === "New").length;
+  const assigned = allWorkOrders.filter(w => w.Status === "Assigned" || w.Status === "In Progress").length;
+  const completed = allWorkOrders.filter(w => w.Status === "Completed" || w.Status === "Closed").length;
+  const urgent = allWorkOrders.filter(w => w.Priority === "Urgent").length;
+
+  document.getElementById("stat-total").textContent = total;
+  document.getElementById("stat-new").textContent = newCount;
+  document.getElementById("stat-assigned").textContent = assigned;
+  document.getElementById("stat-completed").textContent = completed;
+  document.getElementById("stat-urgent").textContent = urgent;
+
+  const recent = [...allWorkOrders].reverse().slice(0, 8);
+  const tbody = document.getElementById("dashTableBody");
+  tbody.innerHTML = recent.map(w => `
+    <tr>
+      <td class="td-id">${w.WorkOrderID}</td>
+      <td>${w.RequestedBy || "—"}</td>
+      <td>${w.WorkCategory || "—"}</td>
+      <td>${priorityBadge(w.Priority)}</td>
+      <td>${statusBadge(w.Status)}</td>
+      <td style="font-size:11px">${w.SubmittedDate ? w.SubmittedDate.substring(0,16) : "—"}</td>
+      <td><button class="btn btn-sm btn-secondary" onclick="openDetail('${w.WorkOrderID}')">View →</button></td>
+    </tr>
+  `).join("") || '<tr><td colspan="7" style="text-align:center;padding:24px;color:#aaa">No work orders yet</td></tr>';
+}
+
+// ── WORK ORDERS TABLE ──
+function renderWorkOrders(filtered) {
+  const list = filtered || allWorkOrders;
+  const tbody = document.getElementById("woTableBody");
+  tbody.innerHTML = [...list].reverse().map(w => `
+    <tr>
+      <td class="td-id">${w.WorkOrderID}</td>
+      <td>${w.RequestedBy || "—"}</td>
+      <td>${w.ClientSite || "—"}</td>
+      <td>${w.WorkCategory || "—"}</td>
+      <td>${priorityBadge(w.Priority)}</td>
+      <td>${statusBadge(w.Status)}</td>
+      <td style="font-size:11px">${w.RequiredCompletionDate || "—"}</td>
+      <td style="font-size:11px">${w.AssignedContractor || "<span style='color:#aaa'>Unassigned</span>"}</td>
+      <td>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn btn-sm btn-secondary" onclick="openDetail('${w.WorkOrderID}')">View</button>
+          ${w.Status === "New" ? `<button class="btn btn-sm btn-primary" onclick="openAssign('${w.WorkOrderID}','${w.WorkCategory}')">Assign</button>` : ""}
+          ${w.Status === "Assigned" || w.Status === "In Progress" ? `<button class="btn btn-sm btn-green" onclick="openComplete('${w.WorkOrderID}')">Complete</button>` : ""}
+        </div>
+      </td>
+    </tr>
+  `).join("") || '<tr><td colspan="9" style="text-align:center;padding:24px;color:#aaa">No work orders found</td></tr>';
+}
+
+function filterWorkOrders() {
+  const search = document.getElementById("woSearch").value.toLowerCase();
+  const status = document.getElementById("woStatusFilter").value;
+  const cat = document.getElementById("woCategoryFilter").value;
+  const pri = document.getElementById("woPriorityFilter").value;
+  const filtered = allWorkOrders.filter(w => {
+    const matchSearch = !search || [w.WorkOrderID,w.RequestedBy,w.Location,w.ClientSite,w.WorkDescription].some(f => f && f.toLowerCase().includes(search));
+    const matchStatus = !status || w.Status === status;
+    const matchCat = !cat || w.WorkCategory === cat;
+    const matchPri = !pri || w.Priority === pri;
+    return matchSearch && matchStatus && matchCat && matchPri;
+  });
+  renderWorkOrders(filtered);
+}
+
+// ── CONTRACTORS TABLE ──
+function renderContractors(filtered) {
+  const list = filtered || allContractors;
+  const tbody = document.getElementById("cTableBody");
+  tbody.innerHTML = list.map(c => `
+    <tr>
+      <td class="td-id">${c.ContractorID || "—"}</td>
+      <td style="font-weight:600;color:var(--dark)">${c.ContractorName || "—"}</td>
+      <td>${c.ContactPerson || "—"}</td>
+      <td>${c.Trade || "—"}</td>
+      <td><a href="mailto:${c.Email}" style="color:var(--orange)">${c.Email || "—"}</a></td>
+      <td>${c.Phone || "—"}</td>
+      <td><span class="badge ${c.Availability === 'Available' ? 'badge-completed' : 'badge-closed'}">${c.Availability || "—"}</span></td>
+    </tr>
+  `).join("") || '<tr><td colspan="7" style="text-align:center;padding:24px;color:#aaa">No contractors found</td></tr>';
+}
+
+function filterContractors() {
+  const search = document.getElementById("cSearch").value.toLowerCase();
+  const trade = document.getElementById("cTradeFilter").value;
+  const filtered = allContractors.filter(c => {
+    const matchSearch = !search || [c.ContractorName,c.ContactPerson,c.Email].some(f => f && f.toLowerCase().includes(search));
+    const matchTrade = !trade || c.Trade === trade;
+    return matchSearch && matchTrade;
+  });
+  renderContractors(filtered);
+}
+
+// ── WORK ORDER DETAIL MODAL ──
+function openDetail(woId) {
+  const wo = allWorkOrders.find(w => w.WorkOrderID === woId);
+  if (!wo) return;
+  document.getElementById("modalTitle").textContent = wo.WorkCategory + " Work Order";
+  document.getElementById("modalId").textContent = wo.WorkOrderID + " · Submitted " + (wo.SubmittedDate || "");
+
+  const evidenceHtml = wo.EvidenceLink
+    ? `<a href="${wo.EvidenceLink}" target="_blank" style="color:var(--orange);font-size:13px">📎 View Evidence/Photo</a>`
+    : "<span style='color:#aaa'>None submitted</span>";
+
+  document.getElementById("modalContent").innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;margin-bottom:16px">
+      ${detailRow("Requested By", wo.RequestedBy)}
+      ${detailRow("Client / Site", wo.ClientSite)}
+      ${detailRow("Location", wo.Location)}
+      ${detailRow("Work Category", wo.WorkCategory)}
+      ${detailRow("Priority", priorityBadge(wo.Priority))}
+      ${detailRow("Status", statusBadge(wo.Status))}
+      ${detailRow("Required By", wo.RequiredCompletionDate)}
+      ${detailRow("Assigned To", wo.AssignedContractor || "Unassigned")}
+      ${detailRow("Contractor Email", wo.AssignedContractorEmail || "—")}
+      ${detailRow("Completion Date", wo.CompletionDate || "—")}
+    </div>
+    ${detailRow("Work Description", wo.WorkDescription)}
+    <div style="margin-top:10px">${detailRow("Evidence / Photos", evidenceHtml)}</div>
+    ${wo.ContractorNotes ? `<div style="margin-top:10px">${detailRow("Contractor Notes", wo.ContractorNotes)}</div>` : ""}
+    ${wo.CoordinatorNotes ? `<div style="margin-top:10px">${detailRow("Coordinator Notes", wo.CoordinatorNotes)}</div>` : ""}
+  `;
+
+  const actions = document.getElementById("modalActions");
+  actions.innerHTML = "";
+  if (wo.Status === "New") {
+    const btn = document.createElement("button");
+    btn.className = "btn btn-primary";
+    btn.textContent = "Assign Contractor →";
+    btn.onclick = () => { closeModal("detailModal"); openAssign(wo.WorkOrderID, wo.WorkCategory); };
+    actions.appendChild(btn);
+  }
+  if (wo.Status === "Assigned" || wo.Status === "In Progress") {
+    const btn = document.createElement("button");
+    btn.className = "btn btn-green";
+    btn.textContent = "Mark as Completed ✓";
+    btn.onclick = () => { closeModal("detailModal"); openComplete(wo.WorkOrderID); };
+    actions.appendChild(btn);
+  }
+
+  openModal("detailModal");
+}
+
+function detailRow(label, value) {
+  return `<div class="detail-row"><div class="detail-label">${label}</div><div class="detail-value">${value || "—"}</div></div>`;
+}
+
+// ── ASSIGN MODAL ──
+function openAssign(woId, category) {
+  currentAssignWoId = woId;
+  selectedContractor = null;
+  document.getElementById("assignWoId").textContent = "Work Order: " + woId;
+  document.getElementById("assignNotes").value = "";
+  document.getElementById("confirmAssignBtn").disabled = true;
+  if (category) document.getElementById("assignTradeFilter").value = category;
+  renderAssignContractors();
+  openModal("assignModal");
+}
+
+function renderAssignContractors(filtered) {
+  const trade = document.getElementById("assignTradeFilter").value;
+  const list = (filtered || allContractors).filter(c => !trade || c.Trade === trade);
+  const container = document.getElementById("assignContractorList");
+  container.innerHTML = list.map(c => `
+    <div class="contractor-item" onclick="selectAssignContractor(this,'${c.ContractorName}','${c.Email}','${c.ContactPerson}')">
+      <div>
+        <div class="contractor-name">${c.ContractorName}</div>
+        <div class="contractor-detail">${c.ContactPerson} · ${c.Trade} · ${c.Email}</div>
+      </div>
+      <span class="badge ${c.Availability === 'Available' ? 'badge-completed' : 'badge-closed'}">${c.Availability}</span>
+    </div>
+  `).join("") || "<p style='color:#aaa;font-size:13px;padding:12px'>No contractors found for this trade.</p>";
+}
+
+function filterAssignContractors() { renderAssignContractors(); }
+
+function selectAssignContractor(el, name, email, contact) {
+  document.querySelectorAll(".contractor-item").forEach(i => i.classList.remove("selected"));
+  el.classList.add("selected");
+  selectedContractor = { name, email, contact };
+  document.getElementById("confirmAssignBtn").disabled = false;
+}
+
+async function confirmAssign() {
+  if (!selectedContractor || !currentAssignWoId) return;
+  const wo = allWorkOrders.find(w => w.WorkOrderID === currentAssignWoId);
+  showLoading("Assigning contractor...");
+  closeModal("assignModal");
+  try {
+    const res = await fetch(SCRIPT_URL, {
+      method: "POST",
+      body: JSON.stringify({
+        action: "assignContractor",
+        workOrderId: currentAssignWoId,
+        contractorName: selectedContractor.name,
+        contractorEmail: selectedContractor.email,
+        coordinatorNotes: document.getElementById("assignNotes").value,
+        clientSite: wo?.ClientSite || "",
+        location: wo?.Location || "",
+        workCategory: wo?.WorkCategory || "",
+        priority: wo?.Priority || "",
+        workDescription: wo?.WorkDescription || "",
+        requiredCompletionDate: wo?.RequiredCompletionDate || ""
+      })
+    });
+    const data = await res.json();
+    if (data.status === "success") {
+      showToast("✅ Contractor assigned and notified!", "success");
+      await loadWorkOrders();
+    } else { showToast("Something went wrong", "error"); }
+  } catch(e) { showToast("Connection error", "error"); }
+  hideLoading();
+}
+
+// ── COMPLETE MODAL ──
+function openComplete(woId) {
+  currentCompleteWoId = woId;
+  document.getElementById("completeWoId").textContent = "Work Order: " + woId;
+  document.getElementById("completionDateInput").value = new Date().toISOString().split("T")[0];
+  document.getElementById("completionNotes").value = "";
+  openModal("completeModal");
+}
+
+async function confirmComplete() {
+  if (!currentCompleteWoId) return;
+  const date = document.getElementById("completionDateInput").value;
+  if (!date) { showToast("Please enter completion date", "warning"); return; }
+  showLoading("Marking as completed...");
+  closeModal("completeModal");
+  try {
+    const res = await fetch(SCRIPT_URL, {
+      method: "POST",
+      body: JSON.stringify({
+        action: "completeWorkOrder",
+        workOrderId: currentCompleteWoId,
+        completionDate: date,
+        contractorNotes: document.getElementById("completionNotes").value
+      })
+    });
+    const data = await res.json();
+    if (data.status === "success") {
+      showToast("✅ Work order marked as completed!", "success");
+      await loadWorkOrders();
+    } else { showToast("Something went wrong", "error"); }
+  } catch(e) { showToast("Connection error", "error"); }
+  hideLoading();
+}
+
+// ── SUBMIT WORK ORDER ──
+function selectRadio(el, groupId) {
+  document.querySelectorAll(`#${groupId} .radio-opt`).forEach(o => o.classList.remove("selected"));
+  el.classList.add("selected");
+}
+
+function handleFileSelect(input) {
+  selectedFile = input.files[0];
+  document.getElementById("fileName").textContent = selectedFile ? "📎 " + selectedFile.name : "";
+}
+
+async function submitWorkOrder() {
+  const requestedBy = document.getElementById("f-requestedBy").value.trim();
+  const clientSite  = document.getElementById("f-clientSite").value.trim();
+  const location    = document.getElementById("f-location").value.trim();
+  const completionDate = document.getElementById("f-completionDate").value;
+  const category    = document.querySelector('input[name="category"]:checked')?.value;
+  const priority    = document.querySelector('input[name="priority"]:checked')?.value;
+  const description = document.getElementById("f-description").value.trim();
+
+  if (!requestedBy || !clientSite || !location || !completionDate || !category || !priority || !description) {
+    showToast("Please fill in all required fields", "warning"); return;
+  }
+
+  showLoading("Submitting work order...");
+  document.getElementById("submitBtn").disabled = true;
+
+  let evidenceLink = "";
+  if (selectedFile) {
+    evidenceLink = await uploadFileToDrive(selectedFile);
+  }
+
+  try {
+    const res = await fetch(SCRIPT_URL, {
+      method: "POST",
+      body: JSON.stringify({
+        action: "submitWorkOrder",
+        requestedBy, clientSite, location,
+        requiredCompletionDate: completionDate,
+        workCategory: category, priority,
+        workDescription: description,
+        evidenceLink
+      })
+    });
+    const data = await res.json();
+    if (data.status === "success") {
+      document.getElementById("successId").textContent = data.workOrderId;
+      document.getElementById("formScreen").style.display = "none";
+      document.getElementById("successScreen").style.display = "block";
+      await loadWorkOrders();
+    } else { showToast("Submission failed. Try again.", "error"); }
+  } catch(e) { showToast("Connection error. Try again.", "error"); }
+
+  document.getElementById("submitBtn").disabled = false;
+  hideLoading();
+}
+
+async function uploadFileToDrive(file) {
+  return new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onload = async e => {
+      try {
+        const base64 = e.target.result.split(",")[1];
+        const res = await fetch(SCRIPT_URL, {
+          method: "POST",
+          body: JSON.stringify({
+            action: "uploadFile",
+            fileName: file.name,
+            mimeType: file.type,
+            base64Data: base64
+          })
+        });
+        const data = await res.json();
+        resolve(data.fileUrl || "");
+      } catch { resolve(""); }
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function resetForm() {
+  document.getElementById("f-requestedBy").value = "";
+  document.getElementById("f-clientSite").value = "";
+  document.getElementById("f-location").value = "";
+  document.getElementById("f-completionDate").value = "";
+  document.getElementById("f-description").value = "";
+  document.getElementById("fileName").textContent = "";
+  document.querySelectorAll(".radio-opt").forEach(o => o.classList.remove("selected"));
+  document.querySelectorAll("input[type=radio]").forEach(r => r.checked = false);
+  selectedFile = null;
+  document.getElementById("formScreen").style.display = "block";
+  document.getElementById("successScreen").style.display = "none";
+}
+
+// ── BADGES ──
+function statusBadge(s) {
+  const map = { New:"badge-new", Assigned:"badge-assigned", "In Progress":"badge-inprogress", Completed:"badge-completed", Closed:"badge-closed" };
+  return `<span class="badge ${map[s]||'badge-new'}">${s||"New"}</span>`;
+}
+function priorityBadge(p) {
+  const map = { Low:"badge-low", Medium:"badge-medium", High:"badge-high", Urgent:"badge-urgent" };
+  return `<span class="badge ${map[p]||'badge-medium'}">${p||"—"}</span>`;
+}
+
+// ── MODAL HELPERS ──
+function openModal(id) { document.getElementById(id).classList.add("show"); }
+function closeModal(id) { document.getElementById(id).classList.remove("show"); }
+document.querySelectorAll(".modal-overlay").forEach(m => m.addEventListener("click", e => { if(e.target===m) m.classList.remove("show"); }));
+
+// ── TOAST ──
+function showToast(msg, type="success") {
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.className = "toast show " + type;
+  setTimeout(() => t.className = "toast", 3500);
+}
+
+// ── LOADING ──
+function showLoading(msg) { document.getElementById("loadingText").textContent = msg; document.getElementById("loading").classList.add("show"); }
+function hideLoading() { document.getElementById("loading").classList.remove("show"); }
+
+// ── AUTO REFRESH EVERY 2 MINS ──
+setInterval(() => { if(currentUser) loadWorkOrders(); }, 120000);
+</script>
+</body>
+</html>
